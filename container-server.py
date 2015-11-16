@@ -82,7 +82,7 @@ def containers_log(id):
 
     
 
-    resp = json.dumps(docker_logs_to_object(id,docker(id,'logs'))) 
+    resp = json.dumps(docker_logs_to_object(id,docker('logs',id))) 
     return Response(response=resp, mimetype="application/json")
 
 
@@ -91,9 +91,9 @@ def images_remove(id):
     """
     Delete a specific image
     """
+    docker('stop',id)
 
-
-    docker ('rmi', id)
+    id = docker ('rmi', id)
     resp = '{"id": "%s"}' % id
     return Response(response=resp, mimetype="application/json")
 
@@ -103,6 +103,8 @@ def containers_remove(id):
     Delete a specific container - must be already stopped/killed
 
     """
+
+    docker('stop',id)
     docker('rm',id)
     resp = '{"id": "%s"}' % id
 
@@ -116,10 +118,9 @@ def containers_remove_all():
 
     """
     l = docker('ps','-a')
+    l_arr = docker_ps_to_array(l)
 
-    l = docker_ps_to_array(l)
-
-    for id in l:
+    for id in l_arr:
 	docker('stop',id)
 	docker('rm',id)
     
@@ -134,11 +135,19 @@ def images_remove_all():
     Force remove all images - dangrous!
 
     """
+    l = docker('ps','-a')
+    l_arr = docker_ps_to_array(l)
+
+    for id in l:
+	docker('stop',id)
+	docker('rm',id)
+
+
     l = docker('images')
     l = docker_images_to_array(l)
 
     for id in l:
-	docker('rm',id)
+	docker('rmi',id)
     
     resp = '{"id": "%s"}' % id
     return Response(response=resp, mimetype="application/json")
@@ -156,14 +165,14 @@ def containers_create():
     """
     body = request.get_json(force=True)
     image = body['image']
-    #args = ('run', '-d')
+    
     #id = docker(*(args + (image,)))[0:12]
     
-
-    body = request.get_json(force=True)
-    publish = body['publish']
-    
-    id = docker('run','-d',image,publish)
+    try:
+	publish = body['publish']
+	id = docker('run','-d','-p',publish,images)
+    except:
+	id = docker('run','-d',image)
     
     return Response(response='{"id": "%s"}' % id, mimetype="application/json")
 
@@ -177,8 +186,8 @@ def images_create():
 
     """
     dockerfile = request.files['file']
-    
-    resp = ''
+    resp = docker('build','-f',dockerfile)
+        
     return Response(response=resp, mimetype="application/json")
 
 
@@ -223,7 +232,8 @@ def images_update(id):
     except:
 	pass
 
-    resp = docker('tag',id,tag)
+	# not sure about this one 
+    resp = docker(tag,id)
     return Response(response=resp, mimetype="application/json")
 
 
